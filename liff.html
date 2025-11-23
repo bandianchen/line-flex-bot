@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>留下聯絡電話</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 18px; line-height: 1.6; }
+    .card { max-width: 520px; margin: 0 auto; border: 1px solid #eee; padding: 16px; border-radius: 12px; }
+    h2 { margin: 0 0 8px; font-size: 20px; }
+    input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; }
+    button { width: 100%; padding: 12px; font-size: 16px; border: 0; border-radius: 8px; margin-top: 12px; }
+    button.primary { background:#00A2E8; color:#fff; font-weight:600; }
+    .hint { color:#666; font-size: 13px; margin-top: 6px; }
+    .ok { color: #0a8a0a; font-weight: 600; }
+    .err { color: #c00; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>最後一步：留下聯絡電話</h2>
+    <div class="hint">手機會自動顯示電話建議，你只要點一下就好 😊</div>
+
+    <label class="hint" for="phone">手機號碼</label>
+    <input id="phone" type="tel" inputmode="numeric" placeholder="例如：0912345678" autocomplete="tel" />
+
+    <button class="primary" id="submit">送出電話</button>
+    <div id="msg" class="hint"></div>
+  </div>
+
+  <script>
+    const LIFF_ID = "YOUR_LIFF_ID"; // 等下你會在 LINE Developers 拿到
+
+    function setMsg(text, cls="") {
+      const el = document.getElementById("msg");
+      el.className = "hint " + cls;
+      el.textContent = text;
+    }
+
+    async function main() {
+      await liff.init({ liffId: LIFF_ID });
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+
+      // 盡量幫用戶減少輸入：如果手機有自動填寫/建議，這欄位會很快被填起來
+      document.getElementById("submit").onclick = async () => {
+        const phone = document.getElementById("phone").value.trim();
+        if (!/^\d{9,10}$/.test(phone)) {
+          setMsg("請輸入正確手機號碼（9~10碼）", "err");
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        const payload = {
+          userId: profile.userId,
+          displayName: profile.displayName,
+          phone
+        };
+
+        try {
+          const res = await fetch("/api/lead", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data.ok) {
+            setMsg("已送出！設計顧問會盡快與您聯繫 🙌", "ok");
+            // 可選：自動關閉 LIFF 視窗
+            setTimeout(() => liff.closeWindow(), 1200);
+          } else {
+            setMsg("送出失敗，請稍後再試", "err");
+          }
+        } catch (e) {
+          setMsg("送出失敗，請稍後再試", "err");
+        }
+      };
+    }
+
+    main();
+  </script>
+</body>
+</html>
