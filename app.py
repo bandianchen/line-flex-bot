@@ -2,36 +2,22 @@ import os
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import *
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
 
 app = Flask(__name__)
 
-# 用環境變數讀 token / secret
+# 環境變數讀取（Render 會從 Environment 填入）
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
-# 如果缺少環境變數 → 明確報錯（不要進 handler）
+# 防呆：如果沒設定環境變數 → 直接報錯
 if not LINE_CHANNEL_ACCESS_TOKEN:
-    raise ValueError("Missing LINE_CHANNEL_ACCESS_TOKEN env variable")
+    raise ValueError("Missing LINE_CHANNEL_ACCESS_TOKEN environment variable.")
 if not LINE_CHANNEL_SECRET:
-    raise ValueError("Missing LINE_CHANNEL_SECRET env variable")
+    raise ValueError("Missing LINE_CHANNEL_SECRET environment variable.")
 
-# 正確初始化
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
-
-
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
-    body = request.get_data(as_text=True)
-
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
-
-    return "OK"
 
 # -------------------------
 # Flex：開始填寫需求評估
@@ -49,45 +35,24 @@ flex_start = {
     "type": "box",
     "layout": "vertical",
     "contents": [
-      {
-        "type": "text",
-        "text": "開始填寫需求評估",
-        "weight": "bold",
-        "size": "xl",
-        "color": "#333333"
-      },
-      {
-        "type": "text",
-        "text": "只需 10 秒，回答三個問題，協助媒合最適合的設計師！",
-        "wrap": True,
-        "margin": "md",
-        "color": "#666666",
-        "size": "sm"
-      }
+      {"type": "text", "text": "開始填寫需求評估", "weight": "bold", "size": "xl"},
+      {"type": "text", "text": "回答三個問題，我們幫你媒合最適合的設計師！", "wrap": True, "margin": "md"}
     ]
   },
   "footer": {
     "type": "box",
     "layout": "vertical",
-    "spacing": "md",
     "contents": [
       {
         "type": "button",
         "style": "primary",
-        "action": {
-          "type": "message",
-          "label": "開始填寫",
-          "text": "Q1 屋齡"
-        },
-        "color": "#00A2E8"
+        "action": {"type": "message", "label": "開始填寫", "text": "Q1 屋齡"}
       }
     ]
   }
 }
 
-# -------------------------
 # Flex：問題 1（屋齡）
-# -------------------------
 flex_q1 = {
   "type": "bubble",
   "body": {
@@ -99,12 +64,11 @@ flex_q1 = {
       {
         "type": "box",
         "layout": "vertical",
-        "margin": "md",
         "contents": [
-          {"type": "button", "action": {"type": "message", "label": "0-5 年", "text": "屋齡 0-5"}},
-          {"type": "button", "action": {"type": "message", "label": "5-10 年", "text": "屋齡 5-10"}},
-          {"type": "button", "action": {"type": "message", "label": "10-20 年", "text": "屋齡 10-20"}},
-          {"type": "button", "action": {"type": "message", "label": "20-30 年", "text": "屋齡 20-30"}},
+          {"type": "button", "action": {"type": "message", "label": "0–5 年", "text": "屋齡 0-5"}},
+          {"type": "button", "action": {"type": "message", "label": "5–10 年", "text": "屋齡 5-10"}},
+          {"type": "button", "action": {"type": "message", "label": "10–20 年", "text": "屋齡 10-20"}},
+          {"type": "button", "action": {"type": "message", "label": "20–30 年", "text": "屋齡 20-30"}},
           {"type": "button", "action": {"type": "message", "label": "30 年以上", "text": "屋齡 30+"}}
         ]
       }
@@ -112,9 +76,7 @@ flex_q1 = {
   }
 }
 
-# -------------------------
 # Flex：問題 2（坪數）
-# -------------------------
 flex_q2 = {
   "type": "bubble",
   "body": {
@@ -137,9 +99,7 @@ flex_q2 = {
   }
 }
 
-# -------------------------
 # Flex：問題 3（預算）
-# -------------------------
 flex_q3 = {
   "type": "bubble",
   "body": {
@@ -147,7 +107,7 @@ flex_q3 = {
     "layout": "vertical",
     "contents": [
       {"type": "text", "text": "問題 3：預算（室內設計）", "weight": "bold", "size": "xl"},
-      {"type": "text", "text": "請選擇您的預算範圍：", "margin": "md"},
+      {"type": "text", "text": "請選擇您的預算：", "margin": "md"},
       {
         "type": "box",
         "layout": "vertical",
@@ -162,12 +122,13 @@ flex_q3 = {
   }
 }
 
+
 # -------------------------
-# Webhook 接收訊息
+# Webhook 路由（唯一版本，不能重複）
 # -------------------------
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers['X-Line-Signature']
+    signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
 
     try:
@@ -179,13 +140,13 @@ def callback():
 
 
 # -------------------------
-# 文字事件處理
+# 處理文字訊息事件
 # -------------------------
-@handler.add(MessageEvent, MessageEvent.message_type == 'text')
+@handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text
 
-    # Step 1：觸發流程
+    # Step 1：開始流程
     if text == "開始填寫需求評估":
         line_bot_api.reply_message(
             event.reply_token,
@@ -193,7 +154,7 @@ def handle_message(event):
         )
         return
 
-    # Step 2：問題 1
+    # Step 2：進入 Q1
     if text == "Q1 屋齡":
         line_bot_api.reply_message(
             event.reply_token,
@@ -201,32 +162,30 @@ def handle_message(event):
         )
         return
 
-    # Step 3：問題 2
+    # Step 3：回答 Q1 → 進 Q2
     if text.startswith("屋齡"):
-        # 在這裡你可以加入 API 貼標籤
         line_bot_api.reply_message(
             event.reply_token,
             FlexSendMessage(alt_text="坪數", contents=flex_q2)
         )
         return
 
-    # Step 4：問題 3
+    # Step 4：回答 Q2 → 進 Q3
     if text.startswith("坪數"):
-        # 在這裡你可以加入 API 貼標籤
         line_bot_api.reply_message(
             event.reply_token,
             FlexSendMessage(alt_text="預算", contents=flex_q3)
         )
         return
 
-    # Step 5：流程結束
+    # Step 5：回答 Q3 → 完成
     if text.startswith("預算"):
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage("感謝您的填寫！我們稍後會有專人與您聯繫 😊")
+            TextSendMessage("感謝您的填寫！設計顧問將盡快與您聯繫 😊")
         )
         return
 
 
 if __name__ == "__main__":
-    app.run(port=8000)
+    app.run(host="0.0.0.0", port=10000)
