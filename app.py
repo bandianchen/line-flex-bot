@@ -13,9 +13,6 @@ import os
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("aL4zpHToSGxRRJunDXUcOX1oy4JkQqCAYniXnAXc8D/PY5LcM8bctx4eBqh3YJK6vYaiXWzQ+LIy+TojuC/t5PR5FBlD57b+gurN4LGoCrcRqKo5mF2rqwE+tj/uEYhBzlSTyBrly6sRL6s910wrfwdB04t89/1O/w1cDnyilFU=")
 LINE_CHANNEL_SECRET = os.getenv("854ea372e9e46677ecafdc742628801d")
 
-line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
-
 # -------------------------
 # Flex：開始填寫需求評估
 # -------------------------
