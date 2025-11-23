@@ -112,10 +112,10 @@ flex_q3 = {
         "type": "box",
         "layout": "vertical",
         "contents": [
-          {"type": "button", "action": {"type": "message", "label": "50–100 萬", "text": "預算 50-100"}},
-          {"type": "button", "action": {"type": "message", "label": "100–150 萬", "text": "預算 100-150"}},
-          {"type": "button", "action": {"type": "message", "label": "150–250 萬", "text": "預算 150-250"}},
-          {"type": "button", "action": {"type": "message", "label": "250 萬以上", "text": "預算 250+"}}
+          {"type": "button", "action": {"type": "message", "label": "150–200 萬", "text": "預算 150-200"}},
+          {"type": "button", "action": {"type": "message", "label": "200–250 萬", "text": "預算 200-250"}},
+          {"type": "button", "action": {"type": "message", "label": "250–300 萬", "text": "預算 250-300"}},
+          {"type": "button", "action": {"type": "message", "label": "300 萬以上", "text": "預算 300+"}}
         ]
       }
     ]
