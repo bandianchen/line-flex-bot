@@ -1,16 +1,23 @@
 import os
-from flask import Flask, request, abort
+from flask import Flask, request, abort, send_from_directory, jsonify
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+)
 
 app = Flask(__name__)
 
-# 環境變數讀取（Render 會從 Environment 填入）
+# -------------------------
+# 讀取 Render 環境變數
+# -------------------------
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
-# 防呆：如果沒設定環境變數 → 直接報錯
+# 你的 Render 公網網址（請務必填）
+# 例：https://line-flex-bot.onrender.com
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://YOUR_RENDER_DOMAIN.onrender.com")
+
 if not LINE_CHANNEL_ACCESS_TOKEN:
     raise ValueError("Missing LINE_CHANNEL_ACCESS_TOKEN environment variable.")
 if not LINE_CHANNEL_SECRET:
@@ -19,9 +26,49 @@ if not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# -------------------------
+
+# =========================================================
+# LIFF 頁面與接收 API
+# =========================================================
+
+# 提供 LIFF 表單頁（liff.html 必須在 repo 根目錄）
+@app.route("/liff", methods=["GET"])
+def liff_page():
+    return send_from_directory(".", "liff.html")
+
+
+# 接收 LIFF 表單送出的電話
+@app.route("/api/lead", methods=["POST"])
+def api_lead():
+    data = request.get_json(force=True)
+
+    user_id = data.get("userId")
+    phone = data.get("phone")
+    name = data.get("displayName", "")
+
+    if not user_id or not phone:
+        return jsonify({"ok": False, "error": "missing userId/phone"}), 400
+
+    # TODO: 之後你要寫入 Supabase / Google Sheet
+    print("NEW LEAD:", {"userId": user_id, "name": name, "phone": phone})
+
+    # 可選：主動推播確認訊息給用戶
+    try:
+        line_bot_api.push_message(
+            user_id,
+            TextSendMessage(f"{name}，已收到您的電話 {phone}，設計顧問將盡快與您聯繫 😊")
+        )
+    except Exception as e:
+        print("push failed:", e)
+
+    return jsonify({"ok": True})
+
+
+# =========================================================
+# Flex Messages
+# =========================================================
+
 # Flex：開始填寫需求評估
-# -------------------------
 flex_start = {
   "type": "bubble",
   "hero": {
@@ -112,10 +159,10 @@ flex_q3 = {
         "type": "box",
         "layout": "vertical",
         "contents": [
-          {"type": "button", "action": {"type": "message", "label": "150–200 萬", "text": "預算 150-200"}},
-          {"type": "button", "action": {"type": "message", "label": "200–250 萬", "text": "預算 200-250"}},
-          {"type": "button", "action": {"type": "message", "label": "250–300 萬", "text": "預算 250-300"}},
-          {"type": "button", "action": {"type": "message", "label": "300 萬以上", "text": "預算 300+"}}
+          {"type": "button", "action": {"type": "message", "label": "50–100 萬", "text": "預算 50-100"}},
+          {"type": "button", "action": {"type": "message", "label": "100–150 萬", "text": "預算 100-150"}},
+          {"type": "button", "action": {"type": "message", "label": "150–250 萬", "text": "預算 150-250"}},
+          {"type": "button", "action": {"type": "message", "label": "250 萬以上", "text": "預算 250+"}}
         ]
       }
     ]
@@ -123,12 +170,45 @@ flex_q3 = {
 }
 
 
-# -------------------------
-# Webhook 路由（唯一版本，不能重複）
-# -------------------------
-@app.route("/callback", methods=['POST'])
+def make_liff_flex():
+    """預算答完後導 LIFF 的 Flex"""
+    liff_url = f"{PUBLIC_BASE_URL}/liff"
+    return {
+      "type": "bubble",
+      "body": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {"type": "text", "text": "最後一步：留下聯絡電話", "weight": "bold", "size": "xl"},
+          {
+            "type": "text",
+            "text": "按下按鈕開啟表單，手機會自動顯示電話建議，你只要點一下就完成 😊",
+            "wrap": True,
+            "margin": "md",
+            "size": "sm"
+          }
+        ]
+      },
+      "footer": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "button",
+            "style": "primary",
+            "action": {"type": "uri", "label": "開啟電話表單", "uri": liff_url}
+          }
+        ]
+      }
+    }
+
+
+# =========================================================
+# Webhook（唯一一份 /callback）
+# =========================================================
+@app.route("/callback", methods=["POST"])
 def callback():
-    signature = request.headers.get('X-Line-Signature')
+    signature = request.headers.get("X-Line-Signature")
     body = request.get_data(as_text=True)
 
     try:
@@ -139,14 +219,14 @@ def callback():
     return "OK"
 
 
-# -------------------------
-# 處理文字訊息事件
-# -------------------------
+# =========================================================
+# 事件處理
+# =========================================================
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    text = event.message.text
+    text = event.message.text.strip()
 
-    # Step 1：開始流程
+    # Step 0：手動輸入觸發開始
     if text == "開始填寫需求評估":
         line_bot_api.reply_message(
             event.reply_token,
@@ -154,7 +234,7 @@ def handle_message(event):
         )
         return
 
-    # Step 2：進入 Q1
+    # Step 1：進 Q1
     if text == "Q1 屋齡":
         line_bot_api.reply_message(
             event.reply_token,
@@ -162,7 +242,7 @@ def handle_message(event):
         )
         return
 
-    # Step 3：回答 Q1 → 進 Q2
+    # Step 2：答屋齡 → 進 Q2
     if text.startswith("屋齡"):
         line_bot_api.reply_message(
             event.reply_token,
@@ -170,7 +250,7 @@ def handle_message(event):
         )
         return
 
-    # Step 4：回答 Q2 → 進 Q3
+    # Step 3：答坪數 → 進 Q3
     if text.startswith("坪數"):
         line_bot_api.reply_message(
             event.reply_token,
@@ -178,11 +258,12 @@ def handle_message(event):
         )
         return
 
-    # Step 5：回答 Q3 → 完成
+    # Step 4：答預算 → 導 LIFF
     if text.startswith("預算"):
+        flex_to_liff = make_liff_flex()
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage("感謝您的填寫！設計顧問將盡快與您聯繫 😊")
+            FlexSendMessage(alt_text="留下電話", contents=flex_to_liff)
         )
         return
 
