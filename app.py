@@ -1,18 +1,37 @@
+import os
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
-)
-import json
+from linebot.models import *
 
 app = Flask(__name__)
 
-# 填入你自己的 token / secret
-import os
-
+# 用環境變數讀 token / secret
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+
+# 如果缺少環境變數 → 明確報錯（不要進 handler）
+if not LINE_CHANNEL_ACCESS_TOKEN:
+    raise ValueError("Missing LINE_CHANNEL_ACCESS_TOKEN env variable")
+if not LINE_CHANNEL_SECRET:
+    raise ValueError("Missing LINE_CHANNEL_SECRET env variable")
+
+# 正確初始化
+line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
+handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+
+@app.route("/callback", methods=['POST'])
+def callback():
+    signature = request.headers['X-Line-Signature']
+    body = request.get_data(as_text=True)
+
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+
+    return "OK"
 
 # -------------------------
 # Flex：開始填寫需求評估
