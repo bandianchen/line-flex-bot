@@ -30,14 +30,11 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # =========================================================
 # LIFF 頁面與接收 API
 # =========================================================
-
-# 提供 LIFF 表單頁（liff.html 必須在 repo 根目錄）
 @app.route("/liff", methods=["GET"])
 def liff_page():
     return send_from_directory(".", "liff.html")
 
 
-# 接收 LIFF 表單送出的電話
 @app.route("/api/lead", methods=["POST"])
 def api_lead():
     data = request.get_json(force=True)
@@ -52,7 +49,6 @@ def api_lead():
     # TODO: 之後你要寫入 Supabase / Google Sheet
     print("NEW LEAD:", {"userId": user_id, "name": name, "phone": phone})
 
-    # 可選：主動推播確認訊息給用戶
     try:
         line_bot_api.push_message(
             user_id,
@@ -83,7 +79,7 @@ flex_start = {
     "layout": "vertical",
     "contents": [
       {"type": "text", "text": "開始填寫需求評估", "weight": "bold", "size": "xl"},
-      {"type": "text", "text": "回答三個問題，我們幫你媒合最適合的設計師！", "wrap": True, "margin": "md"}
+      {"type": "text", "text": "回答四個問題，我們幫你媒合最適合的設計師！", "wrap": True, "margin": "md"}
     ]
   },
   "footer": {
@@ -93,7 +89,35 @@ flex_start = {
       {
         "type": "button",
         "style": "primary",
-        "action": {"type": "message", "label": "開始填寫", "text": "Q1 屋齡"}
+        "action": {"type": "message", "label": "開始填寫", "text": "Q0 空間類型"}
+      }
+    ]
+  }
+}
+
+# Flex：Q0 空間類型（新增）
+flex_q0 = {
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {"type": "text", "text": "問題 0：空間類型", "weight": "bold", "size": "xl"},
+      {"type": "text", "text": "請問您要設計的空間是？", "margin": "md"},
+      {
+        "type": "box",
+        "layout": "vertical",
+        "margin": "md",
+        "contents": [
+          {
+            "type": "button",
+            "action": {"type": "message", "label": "居家空間", "text": "空間類型 居家"}
+          },
+          {
+            "type": "button",
+            "action": {"type": "message", "label": "辦公空間", "text": "空間類型 辦公"}
+          }
+        ]
       }
     ]
   }
@@ -171,7 +195,6 @@ flex_q3 = {
 
 
 def make_liff_flex():
-    """預算答完後導 LIFF 的 Flex"""
     liff_url = f"{PUBLIC_BASE_URL}/liff"
     return {
       "type": "bubble",
@@ -234,7 +257,23 @@ def handle_message(event):
         )
         return
 
-    # Step 1：進 Q1
+    # Q0：空間類型
+    if text == "Q0 空間類型":
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(alt_text="空間類型", contents=flex_q0)
+        )
+        return
+
+    # Answer Q0 → 進 Q1（屋齡）
+    if text.startswith("空間類型"):
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(alt_text="屋齡", contents=flex_q1)
+        )
+        return
+
+    # Q1：屋齡（如果有人用手動跳題）
     if text == "Q1 屋齡":
         line_bot_api.reply_message(
             event.reply_token,
@@ -242,7 +281,7 @@ def handle_message(event):
         )
         return
 
-    # Step 2：答屋齡 → 進 Q2
+    # Answer Q1 → 進 Q2（坪數）
     if text.startswith("屋齡"):
         line_bot_api.reply_message(
             event.reply_token,
@@ -250,7 +289,7 @@ def handle_message(event):
         )
         return
 
-    # Step 3：答坪數 → 進 Q3
+    # Answer Q2 → 進 Q3（預算）
     if text.startswith("坪數"):
         line_bot_api.reply_message(
             event.reply_token,
@@ -258,7 +297,7 @@ def handle_message(event):
         )
         return
 
-    # Step 4：答預算 → 導 LIFF
+    # Answer Q3 → 導 LIFF
     if text.startswith("預算"):
         flex_to_liff = make_liff_flex()
         line_bot_api.reply_message(
