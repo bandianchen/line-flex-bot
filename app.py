@@ -61,10 +61,10 @@ def api_lead():
 
 
 # =========================================================
-# Flex Messages
+# Flex Messages（含空間類型 + 新預算）
 # =========================================================
 
-# Flex：開始填寫需求評估
+# Flex：開始填寫
 flex_start = {
   "type": "bubble",
   "hero": {
@@ -95,7 +95,7 @@ flex_start = {
   }
 }
 
-# Flex：Q0 空間類型（新增）
+# Flex：Q0 空間類型
 flex_q0 = {
   "type": "bubble",
   "body": {
@@ -109,21 +109,15 @@ flex_q0 = {
         "layout": "vertical",
         "margin": "md",
         "contents": [
-          {
-            "type": "button",
-            "action": {"type": "message", "label": "居家空間", "text": "空間類型 居家"}
-          },
-          {
-            "type": "button",
-            "action": {"type": "message", "label": "辦公空間", "text": "空間類型 辦公"}
-          }
+          {"type": "button", "action": {"type": "message", "label": "居家空間", "text": "空間類型 居家"}},
+          {"type": "button", "action": {"type": "message", "label": "辦公空間", "text": "空間類型 辦公"}}
         ]
       }
     ]
   }
 }
 
-# Flex：問題 1（屋齡）
+# Flex：Q1 屋齡
 flex_q1 = {
   "type": "bubble",
   "body": {
@@ -147,7 +141,7 @@ flex_q1 = {
   }
 }
 
-# Flex：問題 2（坪數）
+# Flex：Q2 坪數
 flex_q2 = {
   "type": "bubble",
   "body": {
@@ -170,7 +164,7 @@ flex_q2 = {
   }
 }
 
-# Flex：問題 3（預算）
+# Flex：Q3 預算（新版 150 萬起跳）
 flex_q3 = {
   "type": "bubble",
   "body": {
@@ -183,10 +177,10 @@ flex_q3 = {
         "type": "box",
         "layout": "vertical",
         "contents": [
-          {"type": "button", "action": {"type": "message", "label": "50–100 萬", "text": "預算 50-100"}},
-          {"type": "button", "action": {"type": "message", "label": "100–150 萬", "text": "預算 100-150"}},
           {"type": "button", "action": {"type": "message", "label": "150–250 萬", "text": "預算 150-250"}},
-          {"type": "button", "action": {"type": "message", "label": "250 萬以上", "text": "預算 250+"}}
+          {"type": "button", "action": {"type": "message", "label": "250–350 萬", "text": "預算 250-350"}},
+          {"type": "button", "action": {"type": "message", "label": "350–500 萬", "text": "預算 350-500"}},
+          {"type": "button", "action": {"type": "message", "label": "500 萬以上", "text": "預算 500+"}}
         ]
       }
     ]
@@ -243,13 +237,13 @@ def callback():
 
 
 # =========================================================
-# 事件處理
+# 事件處理（含四題流程 + LIFF）
 # =========================================================
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip()
 
-    # Step 0：手動輸入觸發開始
+    # Step 0：開始
     if text == "開始填寫需求評估":
         line_bot_api.reply_message(
             event.reply_token,
@@ -265,7 +259,6 @@ def handle_message(event):
         )
         return
 
-    # Answer Q0 → 進 Q1（屋齡）
     if text.startswith("空間類型"):
         line_bot_api.reply_message(
             event.reply_token,
@@ -273,15 +266,7 @@ def handle_message(event):
         )
         return
 
-    # Q1：屋齡（如果有人用手動跳題）
-    if text == "Q1 屋齡":
-        line_bot_api.reply_message(
-            event.reply_token,
-            FlexSendMessage(alt_text="屋齡", contents=flex_q1)
-        )
-        return
-
-    # Answer Q1 → 進 Q2（坪數）
+    # Q1 → Q2
     if text.startswith("屋齡"):
         line_bot_api.reply_message(
             event.reply_token,
@@ -289,7 +274,7 @@ def handle_message(event):
         )
         return
 
-    # Answer Q2 → 進 Q3（預算）
+    # Q2 → Q3
     if text.startswith("坪數"):
         line_bot_api.reply_message(
             event.reply_token,
@@ -297,7 +282,7 @@ def handle_message(event):
         )
         return
 
-    # Answer Q3 → 導 LIFF
+    # Q3 → LIFF
     if text.startswith("預算"):
         flex_to_liff = make_liff_flex()
         line_bot_api.reply_message(
