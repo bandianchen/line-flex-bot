@@ -10,8 +10,9 @@
     .card { max-width: 520px; margin: 0 auto; border: 1px solid #eee; padding: 16px; border-radius: 12px; }
     h2 { margin: 0 0 8px; font-size: 20px; }
     input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; }
-    button { width: 100%; padding: 12px; font-size: 16px; border: 0; border-radius: 8px; margin-top: 12px; }
+    button { width: 100%; padding: 12px; font-size: 16px; border: 0; border-radius: 8px; margin-top: 12px; cursor: pointer;}
     button.primary { background:#00A2E8; color:#fff; font-weight:600; }
+    button[disabled] { opacity: .6; cursor: not-allowed; }
     .hint { color:#666; font-size: 13px; margin-top: 6px; }
     .ok { color: #0a8a0a; font-weight: 600; }
     .err { color: #c00; font-weight: 600; }
@@ -20,7 +21,7 @@
 <body>
   <div class="card">
     <h2>最後一步：留下聯絡電話</h2>
-    <div class="hint">手機會自動顯示電話建議，你只要點一下就好 😊</div>
+    <div class="hint">手機通常會顯示電話建議，你只要點一下就好 😊</div>
 
     <label class="hint" for="phone">手機號碼</label>
     <input id="phone" type="tel" inputmode="numeric" placeholder="例如：0912345678" autocomplete="tel" />
@@ -30,12 +31,47 @@
   </div>
 
   <script>
-    const LIFF_ID = "2008555622-p3en2ZLa"; // 等下你會在 LINE Developers 拿到
+    const LIFF_ID = "YOUR_LIFF_ID"; // 記得換成你的 LIFF ID
+    const API_URL = window.location.origin + "/api/lead";
+
+    const btn = document.getElementById("submit");
+    const phoneEl = document.getElementById("phone");
+    const msgEl = document.getElementById("msg");
 
     function setMsg(text, cls="") {
-      const el = document.getElementById("msg");
-      el.className = "hint " + cls;
-      el.textContent = text;
+      msgEl.className = "hint " + cls;
+      msgEl.textContent = text;
+    }
+
+    function setLoading(isLoading) {
+      btn.disabled = isLoading;
+      btn.textContent = isLoading ? "送出中…" : "送出電話";
+    }
+
+    // fetch with timeout + retry
+    async function postWithTimeout(payload, timeoutMs = 12000, retries = 1) {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error("bad response");
+
+          return data;
+        } catch (e) {
+          clearTimeout(timer);
+          if (attempt === retries) throw e; // 最後一次仍失敗就拋出
+        }
+      }
     }
 
     async function main() {
@@ -46,42 +82,39 @@
         return;
       }
 
-      // 盡量幫用戶減少輸入：如果手機有自動填寫/建議，這欄位會很快被填起來
-      document.getElementById("submit").onclick = async () => {
-        const phone = document.getElementById("phone").value.trim();
+      btn.onclick = async () => {
+        const phone = phoneEl.value.trim();
+
         if (!/^\d{9,10}$/.test(phone)) {
           setMsg("請輸入正確手機號碼（9~10碼）", "err");
           return;
         }
 
-        const profile = await liff.getProfile();
-        const payload = {
-          userId: profile.userId,
-          displayName: profile.displayName,
-          phone
-        };
+        setLoading(true);
+        setMsg("正在送出，若第一次較久屬正常（系統喚醒中）…");
 
         try {
-          const res = await fetch("/api/lead", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          if (data.ok) {
-            setMsg("已送出！設計顧問會盡快與您聯繫 🙌", "ok");
-            // 可選：自動關閉 LIFF 視窗
-            setTimeout(() => liff.closeWindow(), 1200);
-          } else {
-            setMsg("送出失敗，請稍後再試", "err");
-          }
+          const profile = await liff.getProfile();
+          const payload = {
+            userId: profile.userId,
+            displayName: profile.displayName,
+            phone
+          };
+
+          await postWithTimeout(payload, 12000, 1); // 12秒 timeout，自動 retry 1 次
+
+          setMsg("已送出！設計顧問會盡快與您聯繫 🙌", "ok");
+          setTimeout(() => liff.closeWindow(), 1200);
         } catch (e) {
-          setMsg("送出失敗，請稍後再試", "err");
+          setMsg("連線較久可能是系統喚醒中，請再點一次送出即可 ✅", "err");
+          setLoading(false);
         }
       };
     }
 
-    main();
+    main().catch(() => {
+      setMsg("LIFF 初始化失敗，請關閉後重新開啟", "err");
+    });
   </script>
 </body>
 </html>
