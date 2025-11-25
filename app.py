@@ -110,7 +110,8 @@ flex_q0 = {
         "margin": "md",
         "contents": [
           {"type": "button", "action": {"type": "message", "label": "居家空間", "text": "空間類型 居家"}},
-          {"type": "button", "action": {"type": "message", "label": "辦公空間", "text": "空間類型 辦公"}}
+          {"type": "button", "action": {"type": "message", "label": "辦公空間", "text": "空間類型 辦公"}},
+          {"type": "button", "action": {"type": "message", "label": "商業空間", "text": "空間類型 商業"}}
         ]
       }
     ]
@@ -130,8 +131,7 @@ flex_q1 = {
         "type": "box",
         "layout": "vertical",
         "contents": [
-          {"type": "button", "action": {"type": "message", "label": "0–5 年", "text": "屋齡 0-5"}},
-          {"type": "button", "action": {"type": "message", "label": "5–10 年", "text": "屋齡 5-10"}},
+          {"type": "button", "action": {"type": "message", "label": "0–10 年", "text": "屋齡 0-10"}},
           {"type": "button", "action": {"type": "message", "label": "10–20 年", "text": "屋齡 10-20"}},
           {"type": "button", "action": {"type": "message", "label": "20–30 年", "text": "屋齡 20-30"}},
           {"type": "button", "action": {"type": "message", "label": "30 年以上", "text": "屋齡 30+"}}
